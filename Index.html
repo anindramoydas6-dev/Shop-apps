@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Billing Pro</title>
+    <style>
+        :root { --primary: #1565C0; --bg: #f5f5f5; --card: #ffffff; --text: #333; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background: var(--bg); color: var(--text); padding-bottom: 70px; }
+        
+        /* Header */
+        header { background: var(--primary); color: white; padding: 16px; font-size: 20px; font-weight: bold; position: sticky; top: 0; z-index: 100; text-align: center; }
+        
+        /* Screens */
+        .screen { display: none; padding: 16px; }
+        .screen.active { display: block; }
+        
+        /* Cards */
+        .card { background: var(--card); border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        
+        /* Inputs & Buttons */
+        input, select { width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; }
+        button { width: 100%; padding: 14px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-bottom: 10px; color: white; background: var(--primary); }
+        button.danger { background: #d32f2f; }
+        button.success { background: #2e7d32; }
+        button.gray { background: #757575; }
+
+        /* Bottom Navigation */
+        nav { position: fixed; bottom: 0; width: 100%; background: white; display: flex; justify-content: space-around; padding: 10px 0; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); }
+        nav div { text-align: center; font-size: 12px; color: #777; cursor: pointer; padding: 5px 10px; }
+        nav div.active { color: var(--primary); font-weight: bold; }
+        nav div span { display: block; font-size: 20px; margin-bottom: 2px; }
+
+        /* Lists */
+        .list-item { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding: 10px 0; }
+        .list-item:last-child { border-bottom: none; }
+        .list-item-info { flex: 1; }
+        .list-item-title { font-weight: bold; font-size: 16px; }
+        .list-item-sub { font-size: 14px; color: #666; }
+        
+        /* Billing specific */
+        .total-row { display: flex; justify-content: space-between; font-size: 18px; font-weight: bold; margin-top: 10px; padding-top: 10px; border-top: 2px dashed #ccc; }
+    </style>
+</head>
+<body>
+
+    <header id="app-title">Billing Pro</header>
+
+    <!-- INVENTORY SCREEN -->
+    <div id="screen-inventory" class="screen">
+        <div class="card">
+            <h3>Add / Edit Product</h3>
+            <input type="hidden" id="prod-id">
+            <input type="text" id="prod-name" placeholder="Product Name">
+            <input type="number" id="prod-price" placeholder="Selling Price (₹)" step="0.01">
+            <input type="number" id="prod-cost" placeholder="Cost Price (₹)" step="0.01">
+            <input type="number" id="prod-stock" placeholder="Stock Quantity">
+            <button onclick="saveProduct()">Save Product</button>
+        </div>
+        <h3>Stock List</h3>
+        <div id="inventory-list"></div>
+    </div>
+
+    <!-- BILLING SCREEN -->
+    <div id="screen-billing" class="screen active">
+        <div class="card">
+            <select id="bill-customer">
+                <option value="">-- Walk-in Customer --</option>
+            </select>
+            <select id="bill-product" onchange="addToCart(this)">
+                <option value="">-- Select Product to Add --</option>
+            </select>
+        </div>
+
+        <div class="card">
+            <h3>Cart</h3>
+            <div id="cart-list"></div>
+            
+            <div style="display:flex; gap:10px; margin-top:10px;">
+                <input type="number" id="disc-percent" placeholder="Disc %" oninput="calculateTotals()">
+                <input type="number" id="disc-amount" placeholder="Disc ₹" oninput="calculateTotals()">
+            </div>
+            
+            <div class="total-row">
+                <span>Total:</span>
+                <span id="cart-total">₹0.00</span>
+            </div>
+            <button class="success" onclick="checkout()" style="margin-top:15px;">💾 Save Bill</button>
+        </div>
+    </div>
+
+    <!-- CUSTOMERS SCREEN -->
+    <div id="screen-customers" class="screen">
+        <div class="card">
+            <h3>Add Customer</h3>
+            <input type="text" id="cust-name" placeholder="Customer Name">
+            <input type="tel" id="cust-phone" placeholder="Phone Number">
+            <button onclick="saveCustomer()">Save Customer</button>
+        </div>
+        <h3>Customer List</h3>
+        <div id="customer-list"></div>
+    </div>
+
+    <!-- PROFIT SCREEN -->
+    <div id="screen-profit" class="screen">
+        <div class="card" style="text-align: center;">
+            <h3>Monthly Profit</h3>
+            <input type="month" id="profit-month" onchange="loadProfit()" style="text-align: center; font-size: 20px;">
+            <h1 id="profit-total" style="color: #2e7d32; font-size: 40px; margin: 20px 0;">₹0.00</h1>
+            <p id="profit-bills" style="color: #666;">0 bills generated</p>
+        </div>
+    </div>
+
+    <!-- BOTTOM NAV -->
+    <nav>
+        <div onclick="switchTab('billing')" class="active" id="nav-billing"><span>🛒</span>Billing</div>
+        <div onclick="switchTab('inventory')" id="nav-inventory"><span>📦</span>Inventory</div>
+        <div onclick="switchTab('customers')" id="nav-customers"><span>👥</span>Customers</div>
+        <div onclick="switchTab('profit')" id="nav-profit"><span>📈</span>Profit</div>
+    </nav>
+
+    <script>
+        // --- DATABASE (Local Storage) ---
+        let db = {
+            products: JSON.parse(localStorage.getItem('products')) || [],
+            customers: JSON.parse(localStorage.getItem('customers')) || [],
+            bills: JSON.parse(localStorage.getItem('bills')) || []
+        };
+
+        function saveDB() {
+            localStorage.setItem('products', JSON.stringify(db.products));
+            localStorage.setItem('customers', JSON.stringify(db.customers));
+            localStorage.setItem('bills', JSON.stringify(db.bills));
+        }
+
+        // --- NAVIGATION ---
+        function switchTab(tab) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('nav div').forEach(n => n.classList.remove('active'));
+            
+            document.getElementById('screen-' + tab).classList.add('active');
+            document.getElementById('nav-' + tab).classList.add('active');
+            document.getElementById('app-title').innerText = tab.charAt(0).toUpperCase() + tab.slice(1);
+
+            if(tab === 'billing') renderBilling();
+            if(tab === 'inventory') renderInventory();
+            if(tab === 'customers') renderCustomers();
+            if(tab === 'profit') { document.getElementById('profit-month').value = new Date().toISOString().slice(0, 7); loadProfit(); }
+        }
+
+        // --- INVENTORY ---
+        function saveProduct() {
+            const id = document.getElementById('prod-id').value;
+            const name = document.getElementById('prod-name').value;
+            const price = parseFloat(document.getElementById('prod-price').value) || 0;
+            const cost = parseFloat(document.getElementById('prod-cost').value) || 0;
+            const stock = parseInt(document.getElementById('prod-stock').value) || 0;
+
+            if(!name) return alert("Enter product name");
+
+            if(id) {
+                const idx = db.products.findIndex(p => p.id == id);
+                db.products[idx] = { id: Date.now(), name, price, cost, stock };
+            } else {
+                db.products.push({ id: Date.now(), name, price, cost, stock });
+            }
+            saveDB();
+            document.getElementById('prod-id').value = "";
+            document.getElementById('prod-name').value = "";
+            document.getElementById('prod-price').value = "";
+            document.getElementById('prod-cost').value = "";
+            document.getElementById('prod-stock').value = "";
+            renderInventory();
+        }
+
+        function renderInventory() {
+            const list = document.getElementById('inventory-list');
+            list.innerHTML = db.products.map(p => `
+                <div class="card list-item">
+                    <div class="list-item-info">
+                        <div class="list-item-title">${p.name}</div>
+                        <div class="list-item-sub">Price: ₹${p.price} • Cost: ₹${p.cost} • Stock: ${p.stock}</div>
+                    </div>
+                    <button class="danger" style="width:auto; padding:8px 12px; margin:0;" onclick="deleteProduct(${p.id})">Del</button>
+                </div>
+            `).join('');
+        }
+
+        function deleteProduct(id) {
+            if(confirm("Delete this product?")) {
+                db.products = db.products.filter(p => p.id !== id);
+                saveDB(); renderInventory();
+            }
+        }
+
+        // --- CUSTOMERS ---
+        function saveCustomer() {
+            const name = document.getElementById('cust-name').value;
+            const phone = document.getElementById('cust-phone').value;
+            if(!name || !phone) return alert("Enter name and phone");
+            db.customers.push({ id: Date.now(), name, phone });
+            saveDB();
+            document.getElementById('cust-name').value = "";
+            document.getElementById('cust-phone').value = "";
+            renderCustomers();
+        }
+
+        function renderCustomers() {
+            const list = document.getElementById('customer-list');
+            list.innerHTML = db.customers.map(c => `
+                <div class="card list-item">
+                    <div class="list-item-info">
+                        <div class="list-item-title">${c.name}</div>
+                        <div class="list-item-sub">📞 ${c.phone}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // --- BILLING ---
+        let cart = [];
+
+        function renderBilling() {
+            // Render Customer Dropdown
+            const custSelect = document.getElementById('bill-customer');
+            custSelect.innerHTML = '<option value="">-- Walk-in Customer --</option>' + 
+                db.customers.map(c => `<option value="${c.id}">${c.name} (${c.phone})</option>`).join('');
+
+            // Render Product Dropdown
+            const prodSelect = document.getElementById('bill-product');
+            prodSelect.innerHTML = '<option value="">-- Select Product to Add --</option>' + 
+                db.products.filter(p => p.stock > 0).map(p => `<option value="${p.id}">${p.name} - ₹${p.price} (Stock: ${p.stock})</option>`).join('');
+            
+            renderCart();
+        }
+
+        function addToCart(select) {
+            const prodId = select.value;
+            if(!prodId) return;
+            select.value = ""; // reset
+
+            const product = db.products.find(p => p.id == prodId);
+            const cartItem = cart.find(c => c.id == prodId);
+
+            if(cartItem) {
+                if(cartItem.qty >= product.stock) return alert("Not enough stock!");
+                cartItem.qty++;
+            } else {
+                cart.push({ ...product, qty: 1 });
+            }
+            renderCart();
+        }
+
+        function changeQty(id, change) {
+            const idx = cart.findIndex(c => c.id == id);
+            if(idx > -1) {
+                cart[idx].qty += change;
+                if(cart[idx].qty <= 0) cart.splice(idx, 1);
+                else if(cart[idx].qty > cart[idx].stock) {
+                    alert("Not enough stock!"); cart[idx].qty = cart[idx].stock;
+                }
+            }
+            renderCart();
+        }
+
+        function renderCart() {
+            const list = document.getElementById('cart-list');
+            if(cart.length === 0) {
+                list.innerHTML = '<p style="color:#999; text-align:center;">Cart is empty</p>';
+                calculateTotals();
+                return;
+            }
+            list.innerHTML = cart.map(c => `
+                <div class="list-item">
+                    <div class="list-item-info">
+                        <div class="list-item-title">${c.name}</div>
+                        <div class="list-item-sub">₹${c.price} x ${c.qty}</div>
+                    </div>
+                    <div style="display:flex; gap:5px;">
+                        <button class="gray" style="width:35px; height:35px; padding:0;" onclick="changeQty(${c.id}, -1)">-</button>
+                        <button style="width:35px; height:35px; padding:0;" onclick="changeQty(${c.id}, 1)">+</button>
+                    </div>
+                </div>
+            `).join('');
+            calculateTotals();
+        }
+
+        function calculateTotals() {
+            let subtotal = cart.reduce((sum, c) => sum + (c.price * c.qty), 0);
+            let discP = parseFloat(document.getElementById('disc-percent').value) || 0;
+            let discA = parseFloat(document.getElementById('disc-amount').value) || 0;
+
+            let total = subtotal - (subtotal * discP / 100) - discA;
+            if(total < 0) total = 0;
+            
+            document.getElementById('cart-total').innerText = `₹${total.toFixed(2)}`;
+        }
+
+        function checkout() {
+            if(cart.length === 0) return alert("Cart is empty");
+            
+            const custId = document.getElementById('bill-customer').value;
+            const customer = db.customers.find(c => c.id == custId) || { name: "Walk-in" };
+            
+            let subtotal = cart.reduce((sum, c) => sum + (c.price * c.qty), 0);
+            let discP = parseFloat(document.getElementById('disc-percent').value) || 0;
+            let discA = parseFloat(document.getElementById('disc-amount').value) || 0;
+            let total = subtotal - (subtotal * discP / 100) - discA;
+            let profit = cart.reduce((sum, c) => sum + ((c.price - c.cost) * c.qty), 0) - (subtotal * discP / 100) - discA;
+
+            // Save Bill
+            db.bills.push({
+                id: Date.now(),
+                date: new Date().toISOString(),
+                customerName: customer.name,
+                total: total,
+                profit: profit
+            });
+
+            // Reduce Stock
+            cart.forEach(cartItem => {
+                const prod = db.products.find(p => p.id == cartItem.id);
+                prod.stock -= cartItem.qty;
+            });
+
+            saveDB();
+
+            // Notification
+            if(Notification.permission === "granted") {
+                new Notification("Bill Saved ✅", { body: `Total: ₹${total.toFixed(2)}` });
+            }
+
+            alert(`Bill Saved! Total: ₹${total.toFixed(2)}`);
+            
+            // Reset
+            cart = [];
+            document.getElementById('disc-percent').value = "";
+            document.getElementById('disc-amount').value = "";
+            renderBilling();
+        }
+
+        // --- PROFIT ---
+        function loadProfit() {
+            const month = document.getElementById('profit-month').value; // YYYY-MM
+            let totalProfit = 0;
+            let billCount = 0;
+
+            db.bills.forEach(bill => {
+                if(bill.date.startsWith(month)) {
+                    totalProfit += bill.profit;
+                    billCount++;
+                }
+            });
+
+            document.getElementById('profit-total').innerText = `₹${totalProfit.toFixed(2)}`;
+            document.getElementById('profit-bills').innerText = `${billCount} bills generated`;
+        }
+
+        // --- INIT ---
+        if ("Notification" in window) Notification.requestPermission();
+        switchTab('billing'); // Start on billing screen
+    </script>
+</body>
+</html>
